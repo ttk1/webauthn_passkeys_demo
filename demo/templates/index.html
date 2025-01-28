@@ -22,7 +22,7 @@
         <input type="button" value="Authenticate" onclick="authenticate()" />
     </form>
     <script>
-        function arrayBufferToBase64Encode(arrayBuffer) {
+        function arrayBufferToBase64(arrayBuffer) {
             const uint8Array = new Uint8Array(arrayBuffer);
             const base64String = btoa(String.fromCharCode(...uint8Array));
             return base64String;
@@ -93,11 +93,11 @@
                 });
                 const response = await sendRegistrationData({
                     id: credential.id,
-                    rawId: arrayBufferToBase64Encode(credential.rawId),
+                    rawId: arrayBufferToBase64(credential.rawId),
                     type: credential.type,
                     response: {
-                        attestationObject: arrayBufferToBase64Encode(credential.response.attestationObject),
-                        clientDataJSON: arrayBufferToBase64Encode(credential.response.clientDataJSON)
+                        attestationObject: arrayBufferToBase64(credential.response.attestationObject),
+                        clientDataJSON: arrayBufferToBase64(credential.response.clientDataJSON)
                     }
                 });
                 console.log('Registration successful:', response);
@@ -147,12 +147,12 @@
                 });
                 const response = await sendAuthenticationData({
                     id: assertion.id,
-                    rawId: arrayBufferToBase64Encode(assertion.rawId),
+                    rawId: arrayBufferToBase64(assertion.rawId),
                     type: assertion.type,
                     response: {
-                        authenticatorData: arrayBufferToBase64Encode(assertion.response.authenticatorData),
-                        clientDataJSON: arrayBufferToBase64Encode(assertion.response.clientDataJSON),
-                        signature: arrayBufferToBase64Encode(assertion.response.signature)
+                        authenticatorData: arrayBufferToBase64(assertion.response.authenticatorData),
+                        clientDataJSON: arrayBufferToBase64(assertion.response.clientDataJSON),
+                        signature: arrayBufferToBase64(assertion.response.signature)
                     }
                 });
                 console.log('Authentication successful:', response);
