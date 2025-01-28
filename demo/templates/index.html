@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Webauthn Demo for Passkeys</title>
+</head>
+
+<body>
+    <h1>Webauthn Demo for Passkeys</h1>
+    <form name="form">
+        attachment (for register): <select name="authenticatorAttachment">
+            <option value="platform" selected>Platform</option>
+            <option value="cross-platform">Cross-Platform</option>
+        </select><br>
+        attestation (for register): <select name="attestation">
+            <option value="none" selected>None</option>
+            <option value="direct">Direct</option>
+        </select><br>
+        name: <input type="text" id="name" /><br>
+        <input type="button" value="Register" onclick="register()" />
+        <input type="button" value="Authenticate" onclick="authenticate()" />
+    </form>
+    <script>
+        function arrayBufferToBase64Encode(arrayBuffer) {
+            const uint8Array = new Uint8Array(arrayBuffer);
+            const base64String = btoa(String.fromCharCode(...uint8Array));
+            return base64String;
+        }
+        function base64ToArrayBuffer(base64Url) {
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+            const binaryString = atob(base64 + padding);
+            const binaryLength = binaryString.length;
+            const bytes = new Uint8Array(binaryLength);
+            for (let i = 0; i < binaryLength; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+        const getRegistrationChallenge = async (name) => {
+            const response = await fetch('/webauthn/register-challenge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: name,
+                    displayName: name
+                })
+            });
+            if (!response.ok) {
+                throw new Error('Failed to fetch registration challenge');
+            }
+            return await response.json();
+        };
+        const sendRegistrationData = async (data) => {
+            const response = await fetch('/webauthn/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) {
+                throw new Error('Failed to send registration data');
+            }
+            return await response.json();
+        };
+        const register = async () => {
+            const name = form.name.value;
+            if (!name) {
+                alert("Please specify name!");
+                return;
+            }
+            try {
+                const challenge = await getRegistrationChallenge(name);
+                const credential = await navigator.credentials.create({
+                    publicKey: {
+                        rp: { name: "TEST" },
+                        user: {
+                            id: base64ToArrayBuffer(challenge.userId),
+                            name: challenge.username,
+                            displayName: challenge.displayName
+                        },
+                        pubKeyCredParams: [
+                            // -7 は ECDSA-SHA256 (ES256)
+                            { type: "public-key", alg: -7 }
+                        ],
+                        challenge: base64ToArrayBuffer(challenge.challenge),
+                        authenticatorSelection: {
+                            authenticatorAttachment: form.authenticatorAttachment.value,
+                            userVerification: "preferred"
+                        },
+                        attestation: form.attestation.value
+                    }
+                });
+                const response = await sendRegistrationData({
+                    id: credential.id,
+                    rawId: arrayBufferToBase64Encode(credential.rawId),
+                    type: credential.type,
+                    response: {
+                        attestationObject: arrayBufferToBase64Encode(credential.response.attestationObject),
+                        clientDataJSON: arrayBufferToBase64Encode(credential.response.clientDataJSON)
+                    }
+                });
+                console.log('Registration successful:', response);
+            } catch (err) {
+                console.error('Error during registration:', err);
+            }
+        }
+        const getAuthenticationChallenge = async (name) => {
+            const response = await fetch('/webauthn/authenticate-challenge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: name })
+            });
+            if (!response.ok) {
+                throw new Error('Failed to fetch authentication challenge');
+            }
+            return await response.json();
+        };
+        const sendAuthenticationData = async (data) => {
+            const response = await fetch('/webauthn/authenticate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) {
+                throw new Error('Failed to authenticate');
+            }
+            return await response.json();
+        };
+        const authenticate = async () => {
+            const name = form.name.value;
+            if (!name) {
+                alert("Please specify name!");
+                return;
+            }
+            try {
+                const challenge = await getAuthenticationChallenge(name);
+                const assertion = await navigator.credentials.get({
+                    publicKey: {
+                        challenge: base64ToArrayBuffer(challenge.challenge),
+                        allowCredentials: challenge.allowCredentials.map(cred => ({
+                            id: base64ToArrayBuffer(cred.id),
+                            type: cred.type
+                        })),
+                        userVerification: "preferred"
+                    }
+                });
+                const response = await sendAuthenticationData({
+                    id: assertion.id,
+                    rawId: arrayBufferToBase64Encode(assertion.rawId),
+                    type: assertion.type,
+                    response: {
+                        authenticatorData: arrayBufferToBase64Encode(assertion.response.authenticatorData),
+                        clientDataJSON: arrayBufferToBase64Encode(assertion.response.clientDataJSON),
+                        signature: arrayBufferToBase64Encode(assertion.response.signature)
+                    }
+                });
+                console.log('Authentication successful:', response);
+            } catch (err) {
+                console.error('Error during authentication:', err);
+            }
+        }
+    </script>
+</body>
+
+</html>
