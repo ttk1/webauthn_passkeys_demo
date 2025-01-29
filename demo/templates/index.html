@@ -9,13 +9,18 @@
 <body>
     <h1>WebAuthn Demo for Passkeys</h1>
     <form name="form">
-        attachment (for register): <select name="authenticatorAttachment">
+        authenticatorAttachment (for register): <select name="authenticatorAttachment">
             <option value="platform" selected>Platform</option>
             <option value="cross-platform">Cross-Platform</option>
         </select><br>
         attestation (for register): <select name="attestation">
             <option value="none" selected>None</option>
             <option value="direct">Direct</option>
+        </select><br>
+        userVerification: <select name="userVerification">
+            <option value="discouraged" selected>Discouraged</option>
+            <option value="preferred">Preferred</option>
+            <option value="required">Required</option>
         </select><br>
         name: <input type="text" id="name" /><br>
         <input type="button" value="Register" onclick="register()" />
@@ -86,7 +91,7 @@
                         challenge: base64ToArrayBuffer(challenge.challenge),
                         authenticatorSelection: {
                             authenticatorAttachment: form.authenticatorAttachment.value,
-                            userVerification: "preferred"
+                            userVerification: form.userVerification.value
                         },
                         attestation: form.attestation.value
                     }
@@ -142,7 +147,7 @@
                             id: base64ToArrayBuffer(cred.id),
                             type: cred.type
                         })),
-                        userVerification: "preferred"
+                        userVerification: form.userVerification.value
                     }
                 });
                 const response = await sendAuthenticationData({
