@@ -86,7 +86,9 @@
                         },
                         pubKeyCredParams: [
                             // -7 は ECDSA-SHA256 (ES256)
-                            { type: "public-key", alg: -7 }
+                            { type: "public-key", alg: -7 },
+                            // -257 は RSA-SHA256 (RS256)
+                            { type: "public-key", alg: -257 }
                         ],
                         challenge: base64ToArrayBuffer(challenge.challenge),
                         authenticatorSelection: {

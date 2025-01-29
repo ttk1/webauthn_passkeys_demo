@@ -3,7 +3,7 @@ import json
 import base64
 import hashlib
 import cbor2
-from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.utils import (
     decode_dss_signature,
@@ -138,7 +138,10 @@ def authenticate():
     if client_data.get("challenge") != challenge:
         return jsonify({"error": "Invalid challenge"}), 400
 
-    # 公開鍵
+    # 署名対象データ
+    signed_data = authenticator_data + hashlib.sha256(client_data_json).digest()
+
+    # 公開鍵の取り出し
     credentials = list(
         filter(lambda cred: cred["id"] == data["id"], user["credentials"])
     )
@@ -159,22 +162,28 @@ def authenticate():
         credential_data_start + 18 + credential_id_length :
     ]
     credential_public_key = cbor2.loads(credential_public_key_cbor)
-    x = int.from_bytes(credential_public_key[-2], byteorder="big")
-    y = int.from_bytes(credential_public_key[-3], byteorder="big")
-    public_numbers = ec.EllipticCurvePublicNumbers(x, y, ec.SECP256R1())
-    public_key = public_numbers.public_key()
-
-    # DSS 署名のデコード
-    r, s = decode_dss_signature(signature)
-    der_encoded_signature = encode_dss_signature(r, s)
-
-    # 署名対象データ
-    signed_data = authenticator_data + hashlib.sha256(client_data_json).digest()
-
     try:
         # 署名の検証
-        public_key.verify(der_encoded_signature, signed_data, ec.ECDSA(hashes.SHA256()))
+        if credential_public_key[1] == 2:
+            # EC2
+            r, s = decode_dss_signature(signature)
+            der_signature = encode_dss_signature(r, s)
+            x = int.from_bytes(credential_public_key[-2], byteorder="big")
+            y = int.from_bytes(credential_public_key[-3], byteorder="big")
+            public_numbers = ec.EllipticCurvePublicNumbers(x, y, ec.SECP256R1())
+            public_key = public_numbers.public_key()
+            public_key.verify(der_signature, signed_data, ec.ECDSA(hashes.SHA256()))
+        elif credential_public_key[1] == 3:
+            # RSA
+            n = int.from_bytes(credential_public_key[-1], byteorder="big")
+            e = int.from_bytes(credential_public_key[-2], byteorder="big")
+            public_numbers = rsa.RSAPublicNumbers(e, n)
+            public_key = public_numbers.public_key()
+            public_key.verify(
+                signature, signed_data, padding.PKCS1v15(), hashes.SHA256()
+            )
+        else:
+            return jsonify({"error": "Invalid key type"}), 400
     except:
         return jsonify({"error": "Invalid signature"}), 400
-
     return jsonify({"success": True, "message": "Authentication successful"})
